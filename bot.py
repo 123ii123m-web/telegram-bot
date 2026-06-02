@@ -20,9 +20,7 @@ from telegram.ext import (
     filters,
 )
 
-# ================== تنظیمات اصلی ==================
-
-TOKEN = os.getenv("API_KEY")   # ← از Environment Variable
+TOKEN = os.getenv("API_KEY")
 ADMIN_ID = 6300997264
 
 BASE_DIR = Path(__file__).parent
@@ -35,12 +33,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ================== کمک‌تابع‌ها ==================
-
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
-
 
 def format_size(num_bytes: int) -> str:
     if num_bytes is None:
@@ -51,59 +45,39 @@ def format_size(num_bytes: int) -> str:
         num_bytes /= 1024
     return f"{num_bytes:.2f} PB"
 
-
 def list_downloaded_files():
-    files = []
-    for p in DOWNLOAD_DIR.iterdir():
-        if p.is_file():
-            files.append(p)
-    return files
+    return [p for p in DOWNLOAD_DIR.iterdir() if p.is_file()]
 
-
-# ================== منو ==================
-
-def main_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
+def main_menu_keyboard():
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("📥 دانلودرها", callback_data="menu_downloaders")],
         [InlineKeyboardButton("🖥 سیستم", callback_data="menu_system")],
         [InlineKeyboardButton("📂 فایل‌ها", callback_data="menu_files")],
-    ]
-    return InlineKeyboardMarkup(buttons)
+    ])
 
-
-def downloaders_menu_keyboard() -> InlineKeyboardMarkup:
+def downloaders_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔗 دانلودر لینک مستقیم", callback_data="dl_direct")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
     ])
 
-
-def system_menu_keyboard() -> InlineKeyboardMarkup:
+def system_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 وضعیت سرور", callback_data="sys_status")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
     ])
 
-
-def files_menu_keyboard() -> InlineKeyboardMarkup:
+def files_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📃 لیست فایل‌ها", callback_data="files_list")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
     ])
 
-
-# ================== هندلرها ==================
-
 async def start(update: Update, context: ContextTypes.Context):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("این ربات خصوصی است.")
         return
-
-    await update.message.reply_text(
-        "سلام امیر 👋\nربات روشنه.",
-        reply_markup=main_menu_keyboard(),
-    )
-
+    await update.message.reply_text("سلام امیر 👋", reply_markup=main_menu_keyboard())
 
 async def handle_callback(update: Update, context: ContextTypes.Context):
     query = update.callback_query
@@ -149,10 +123,8 @@ async def handle_callback(update: Update, context: ContextTypes.Context):
         if not files:
             await query.edit_message_text("هیچ فایلی نیست.")
             return
-        text = "\n".join([f.name for f in files])
-        await query.edit_message_text(text)
+        await query.edit_message_text("\n".join([f.name for f in files]))
         return
-
 
 async def text_handler(update: Update, context: ContextTypes.Context):
     if not is_admin(update.effective_user.id):
@@ -167,7 +139,6 @@ async def text_handler(update: Update, context: ContextTypes.Context):
         return
 
     await update.message.reply_text("از منو استفاده کن.", reply_markup=main_menu_keyboard())
-
 
 async def handle_direct_download(update: Update, context: ContextTypes.Context, url: str):
     msg = await update.message.reply_text("در حال بررسی لینک...")
@@ -192,14 +163,8 @@ async def handle_direct_download(update: Update, context: ContextTypes.Context, 
     except Exception as e:
         await msg.edit_text(f"خطا: {e}")
 
-
 async def unknown_command(update: Update, context: ContextTypes.Context):
     await update.message.reply_text("دستور نامعتبر.")
-
-
-# ================== اجرای ربات (Webhook برای Render) ==================
-
-PORT = int(os.environ.get("PORT", 8443))
 
 async def main():
     app = Application.builder().token(TOKEN).build()
@@ -209,20 +174,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-    await app.initialize()
-    await app.start()
-
-    webhook_url = f"https://telegram-bot-05x3.onrender.com/{TOKEN}"
-
-    await app.bot.set_webhook(url=webhook_url)
-
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=webhook_url
-    )
-
+    await app.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
