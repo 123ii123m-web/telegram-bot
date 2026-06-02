@@ -5,9 +5,10 @@ import aiohttp
 import psutil
 import mimetypes
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
-from typing import Optional
+from typing import Optional, Dict, List
+from collections import defaultdict
 
 from telegram import (
     Update,
@@ -35,6 +36,13 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 DOWNLOAD_TIMEOUT = 300  # 5 دقیقه
 CHUNK_SIZE = 1024 * 256  # 256 KB
 
+# ✅ تغییر: تنظیمات Rate Limiting
+RATE_LIMIT_MAX = 10  # حداکثر 10 دانلود
+RATE_LIMIT_WINDOW = 60  # در 60 ثانیه
+
+# ✅ تغییر: برای ردیابی Rate Limiting
+user_downloads: Dict[int, List[datetime]] = defaultdict(list)
+
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -44,6 +52,35 @@ logger = logging.getLogger(__name__)
 def is_admin(user_id: int) -> bool:
     """بررسی کنید آیا کاربر ادمین است."""
     return user_id == ADMIN_ID
+
+# ✅ تغییر: تابع برای بررسی Rate Limit
+def check_rate_limit(user_id: int) -> bool:
+    """
+    بررسی Rate Limit کاربر.
+    حداکثر 10 دانلود در 60 ثانیه.
+    
+    بازگرداند:
+        bool: True اگر می‌تونه دانلود کند، False اگر حد تجاوز شده
+    """
+    try:
+        now = datetime.now()
+        
+        # حذف دانلودهای قدیمی‌تر از 60 ثانیه
+        user_downloads[user_id] = [
+            dt for dt in user_downloads[user_id]
+            if (now - dt).total_seconds() < RATE_LIMIT_WINDOW
+        ]
+        
+        # بررسی حد بیشترین دانلود
+        if len(user_downloads[user_id]) >= RATE_LIMIT_MAX:
+            return False
+        
+        # اضافه کردن دانلود جدید
+        user_downloads[user_id].append(now)
+        return True
+    except Exception as e:
+        logger.error(f"خطا در بررسی Rate Limit: {e}")
+        return True  # در صورت خطا، اجازه بده
 
 def format_size(num_bytes: int) -> str:
     """تبدیل بایت به فرمت خوانا."""
@@ -55,8 +92,6 @@ def format_size(num_bytes: int) -> str:
             return f"{num_bytes:.2f} {unit}"
         num_bytes /= 1024
     return f"{num_bytes:.2f} PB"
-
-# ✅ تغییر: حذف sanitize_filename() - نام فایل اصلی را نگه‌دار
 
 def list_downloaded_files():
     """لیست تمام فایل های دانلود شده."""
@@ -156,11 +191,15 @@ async def handle_callback(update: Update, context: ContextTypes.Context):
             cpu = psutil.cpu_percent(interval=0.5)
             disk = psutil.disk_usage(DOWNLOAD_DIR)
             
+            # ✅ تغییر: نمایش دانلودهای باقی‌مانده
+            remaining = RATE_LIMIT_MAX - len(user_downloads[query.from_user.id])
+            
             status_text = (
                 f"📊 وضعیت سرور:\n\n"
                 f"CPU: {cpu}%\n"
                 f"RAM: {format_size(ram.used)} / {format_size(ram.total)} ({ram.percent}%)\n"
-                f"Disk: {format_size(disk.used)} / {format_size(disk.total)} ({disk.percent}%)"
+                f"Disk: {format_size(disk.used)} / {format_size(disk.total)} ({disk.percent}%)\n\n"
+                f"⏱️ دانلودهای باقی‌مانده: {remaining}/{RATE_LIMIT_MAX}"
             )
             await query.edit_message_text(status_text, reply_markup=system_menu_keyboard())
         except Exception as e:
@@ -205,6 +244,16 @@ async def text_handler(update: Update, context: ContextTypes.Context):
 async def handle_direct_download(update: Update, context: ContextTypes.Context, url: str) -> None:
     """دانلودر لینک مستقیم."""
     url = url.strip()
+    user_id = update.effective_user.id
+    
+    # ✅ تغییر: بررسی Rate Limit قبل از شروع دانلود
+    if not check_rate_limit(user_id):
+        await update.message.reply_text(
+            "⚠️ محدودیت دانلود فعال شد، لطفاً صبر کنید.\n\n"
+            f"حداکثر {RATE_LIMIT_MAX} دانلود در {RATE_LIMIT_WINDOW} ثانیه"
+        )
+        logger.warning(f"Rate limit exceeded for user: {user_id}")
+        return
     
     # اعتبارسنجی URL
     try:
