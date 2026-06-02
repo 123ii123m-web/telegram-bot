@@ -87,6 +87,7 @@ def cleanup_old_files(hours: int = AUTO_CLEANUP_HOURS) -> int:
                 removed += 1
         except Exception as e:
             logger.error(f"خطا در حذف فایل قدیمی {f.name}: {e}")
+            continue
     return removed
 
 
