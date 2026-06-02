@@ -56,12 +56,7 @@ def format_size(num_bytes: int) -> str:
         num_bytes /= 1024
     return f"{num_bytes:.2f} PB"
 
-def sanitize_filename(filename: str) -> str:
-    """نام فایل را پاک کنید و نمادهای خطرناک را حذف کنید."""
-    invalid_chars = '<>:"/\\|?*'
-    for char in invalid_chars:
-        filename = filename.replace(char, "_")
-    return filename[:255]  # محدود به 255 کاراکتر
+# ✅ تغییر: حذف sanitize_filename() - نام فایل اصلی را نگه‌دار
 
 def list_downloaded_files():
     """لیست تمام فایل های دانلود شده."""
@@ -243,9 +238,10 @@ async def handle_direct_download(update: Update, context: ContextTypes.Context, 
                     await msg.edit_text(f"❌ خطا: وضعیت {response.status}")
                     return
 
-                # استخراج نام فایل
+                # ✅ تغییر: استخراج نام فایل بدون sanitize
+                # نام فایل اصلی را دقیقاً همانطور که است ذخیره کن
                 filename = url.split("/")[-1].split("?")[0] or "downloaded_file"
-                filename = sanitize_filename(filename)
+                # بدون استفاده از sanitize_filename()
                 file_path = DOWNLOAD_DIR / filename
 
                 # دانلود و ذخیره فایل
