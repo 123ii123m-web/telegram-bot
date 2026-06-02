@@ -22,12 +22,8 @@ from telegram.ext import (
 
 # ================== تنظیمات اصلی ==================
 
-TOKEN = os.getenv("API_KEY")   # ← درست شد
+TOKEN = os.getenv("API_KEY")   # ← از Environment Variable
 ADMIN_ID = 6300997264
-
-VERSION = "v1.0.0"
-LAST_UPDATE = "2026-06-02"
-CHANGELOG = "نسخه کامل: منو، دانلودر لینک مستقیم، وضعیت سرور، حافظه، آپدیت، خصوصی بودن، مدیریت فایل‌ها."
 
 BASE_DIR = Path(__file__).parent
 DOWNLOAD_DIR = BASE_DIR / "downloads"
@@ -56,35 +52,6 @@ def format_size(num_bytes: int) -> str:
     return f"{num_bytes:.2f} PB"
 
 
-def classify_file(path: Path) -> str:
-    ext = path.suffix.lower()
-    if ext in [".mp4", ".mkv", ".avi", ".mov"]:
-        return "video"
-    if ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
-        return "image"
-    if ext in [".zip", ".rar", ".7z", ".tar", ".gz"]:
-        return "zip"
-    return "other"
-
-
-def get_disk_info() -> str:
-    disk = psutil.disk_usage(str(BASE_DIR))
-    total = format_size(disk.total)
-    used = format_size(disk.used)
-    free = format_size(disk.free)
-    percent = disk.percent
-    return f"کل: {total}\nمصرف‌شده: {used}\nآزاد: {free}\nدرصد مصرف: {percent}%"
-
-
-def get_ram_cpu_info() -> str:
-    ram = psutil.virtual_memory()
-    cpu = psutil.cpu_percent(interval=0.5)
-    return (
-        f"CPU: {cpu}%\n"
-        f"RAM: {format_size(ram.used)} / {format_size(ram.total)} ({ram.percent}%)"
-    )
-
-
 def list_downloaded_files():
     files = []
     for p in DOWNLOAD_DIR.iterdir():
@@ -93,78 +60,44 @@ def list_downloaded_files():
     return files
 
 
-# ================== منوها ==================
+# ================== منو ==================
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton("📥 دانلودرها", callback_data="menu_downloaders")],
         [InlineKeyboardButton("🖥 سیستم", callback_data="menu_system")],
         [InlineKeyboardButton("📂 فایل‌ها", callback_data="menu_files")],
-        [InlineKeyboardButton("🔄 آپدیت", callback_data="menu_update")],
-        [InlineKeyboardButton("👤 ادمین", callback_data="menu_admin")],
     ]
     return InlineKeyboardMarkup(buttons)
 
 
 def downloaders_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔗 دانلودر لینک مستقیم", callback_data="dl_direct")],
-        [InlineKeyboardButton("▶️ دانلودر یوتیوب (فعلاً غیرفعال)", callback_data="dl_youtube_disabled")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(buttons)
+    ])
 
 
 def system_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 وضعیت سرور", callback_data="sys_status")],
-        [InlineKeyboardButton("💾 وضعیت حافظه فایل‌ها", callback_data="sys_storage")],
-        [InlineKeyboardButton("♻️ ریست ربات", callback_data="sys_reset")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(buttons)
+    ])
 
 
 def files_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("📃 لیست فایل‌ها", callback_data="files_list")],
-        [InlineKeyboardButton("🗑 حذف ویدیوها", callback_data="files_del_video")],
-        [InlineKeyboardButton("🗑 حذف عکس‌ها", callback_data="files_del_image")],
-        [InlineKeyboardButton("🗑 حذف zip", callback_data="files_del_zip")],
-        [InlineKeyboardButton("🗑 حذف سایر", callback_data="files_del_other")],
-        [InlineKeyboardButton("🗑 حذف همه فایل‌ها", callback_data="files_del_all")],
         [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(buttons)
-
-
-def update_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton("ℹ️ نسخه فعلی", callback_data="upd_current")],
-        [InlineKeyboardButton("🕒 آخرین آپدیت", callback_data="upd_last")],
-        [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(buttons)
-
-
-def admin_menu_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
-        [InlineKeyboardButton("👥 لیست کاربران ثبت‌شده", callback_data="admin_users")],
-        [InlineKeyboardButton("⬅️ برگشت", callback_data="back_main")],
-    ]
-    return InlineKeyboardMarkup(buttons)
+    ])
 
 
 # ================== هندلرها ==================
 
 async def start(update: Update, context: ContextTypes.Context):
-    user = update.effective_user
-    if not is_admin(user.id):
+    if not is_admin(update.effective_user.id):
         await update.message.reply_text("این ربات خصوصی است.")
         return
-
-    users = context.application.bot_data.setdefault("users", set())
-    users.add(user.id)
 
     await update.message.reply_text(
         "سلام امیر 👋\nربات روشنه.",
@@ -175,9 +108,8 @@ async def start(update: Update, context: ContextTypes.Context):
 async def handle_callback(update: Update, context: ContextTypes.Context):
     query = update.callback_query
     await query.answer()
-    user = query.from_user
 
-    if not is_admin(user.id):
+    if not is_admin(query.from_user.id):
         await query.edit_message_text("این ربات خصوصی است.")
         return
 
@@ -199,42 +131,18 @@ async def handle_callback(update: Update, context: ContextTypes.Context):
         await query.edit_message_text("فایل‌ها:", reply_markup=files_menu_keyboard())
         return
 
-    if data == "menu_update":
-        await query.edit_message_text("آپدیت:", reply_markup=update_menu_keyboard())
-        return
-
-    if data == "menu_admin":
-        await query.edit_message_text("ادمین:", reply_markup=admin_menu_keyboard())
-        return
-
     if data == "dl_direct":
         context.user_data["mode"] = "direct_download"
         await query.edit_message_text("لینک مستقیم را بفرست.")
         return
 
-    if data == "dl_youtube_disabled":
-        await query.edit_message_text("دانلودر یوتیوب غیرفعال است.")
-        return
-
     if data == "sys_status":
-        info = get_ram_cpu_info()
-        await query.edit_message_text(f"وضعیت سرور:\n\n{info}")
-        return
-
-    if data == "sys_storage":
-        disk_info = get_disk_info()
-        files = list_downloaded_files()
-        total_size = sum(f.stat().st_size for f in files) if files else 0
+        ram = psutil.virtual_memory()
+        cpu = psutil.cpu_percent(interval=0.5)
         await query.edit_message_text(
-            f"فایل‌ها: {len(files)}\n"
-            f"حجم: {format_size(total_size)}\n\n"
-            f"دیسک:\n{disk_info}"
+            f"CPU: {cpu}%\nRAM: {format_size(ram.used)} / {format_size(ram.total)}"
         )
         return
-
-    if data == "sys_reset":
-        await query.edit_message_text("ریست...")
-        os._exit(0)
 
     if data == "files_list":
         files = list_downloaded_files()
@@ -247,8 +155,7 @@ async def handle_callback(update: Update, context: ContextTypes.Context):
 
 
 async def text_handler(update: Update, context: ContextTypes.Context):
-    user = update.effective_user
-    if not is_admin(user.id):
+    if not is_admin(update.effective_user.id):
         await update.message.reply_text("این ربات خصوصی است.")
         return
 
@@ -309,14 +216,12 @@ async def main():
 
     await app.bot.set_webhook(url=webhook_url)
 
-    await app.updater.start_webhook(
+    await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
         webhook_url=webhook_url
     )
-
-    await app.run_until_disconnected()
 
 
 if __name__ == "__main__":
