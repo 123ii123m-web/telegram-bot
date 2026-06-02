@@ -363,7 +363,7 @@ async def handle_direct_download(update: Update, context: ContextTypes.Context, 
 
         with open(file_path, "wb") as f:
             last_percent = -1
-            for chunk in r.iter_content(chunk_size=chunk_size):
+            for chunk in r.iterContent(chunk_size=chunk_size):
                 if not chunk:
                     continue
                 f.write(chunk)
