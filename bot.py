@@ -22,8 +22,8 @@ from telegram.ext import (
 
 # ================== تنظیمات اصلی ==================
 
-TOKEN = "8603497838:AAGm1LIeZJ9B-hBh3ry7YOy8uAWjZEmC1W8"   # ←←← توکن واقعی را اینجا بگذار
-ADMIN_ID = 6300997264            # ←←← آیدی عددی خودت
+TOKEN = os.getenv("8603497838:AAGm1LIeZJ9B-hBh3ry7YOy8uAWjZEmC1W8")   # ← از Environment Variable
+ADMIN_ID = 6300997264          # ← آیدی عددی تو
 
 VERSION = "v1.0.0"
 LAST_UPDATE = "2026-06-02"
@@ -403,17 +403,35 @@ async def unknown_command(update: Update, context: ContextTypes.Context):
     await update.message.reply_text("دستور نامعتبر.", reply_markup=main_menu_keyboard())
 
 
-# ================== اجرای ربات ==================
+# ================== اجرای ربات (Webhook برای Render) ==================
+
+PORT = int(os.environ.get("PORT", 8443))
 
 async def main():
     app = Application.builder().token(TOKEN).build()
 
+    # هندلرها
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
-    await app.run_polling()
+    # شروع وبهوک
+    await app.initialize()
+    await app.start()
+
+    webhook_url = f"https://telegram-bot-05x3.onrender.com/{TOKEN}"
+
+    await app.bot.set_webhook(url=webhook_url)
+
+    await app.updater.start_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=webhook_url
+    )
+
+    await app.run_until_disconnected()
 
 
 if __name__ == "__main__":
